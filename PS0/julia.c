@@ -3,6 +3,7 @@
 #include <math.h>
 #include "julia.h"
 #include "bitmap.h"
+#include   <sys/time.h>
 
 double x_start=-2.01;
 double x_end=1;
@@ -35,34 +36,40 @@ complex_t add_real(complex_t a, int b){
     return c;
 }
 
+// Timing
+double walltime(){
+	static struct timeval t;
+	gettimeofday(&t, NULL);
+	return (t.tv_sec + 1e-6 * t.tv_usec);
+}
 
-// add julia_c input arg here?
+
 void calculate(complex_t julia_C) {
 	for(int i=0;i<XSIZE;i++) {
 		for(int j=0;j<YSIZE;j++) {
 
-        /* Calculate the number of iterations until divergence for each pixel.
+        	/* Calculate the number of iterations until divergence for each pixel.
             If divergence never happens, return MAXITER */
 			complex_t c;
             complex_t z;
-//            complex_t temp;
+			// complex_t temp;
 			int iter=0;
 
-        // find our starting complex number c
+        	// find our starting complex number c
 			c.re = (x_start + step*i);
 			c.im = (ylower + step*j);
 
-        // our starting z is c
+        	// our starting z is c
 			z = c;
 
-        // iterate until we escape
+        	// iterate until we escape
             while(z.re*z.re + z.im*z.im < 4) {
-        // Each pixel in a julia set is calculated using z_n = (z_n-1)² + C
-        // C is provided as user input, so we need to square z and add C until we
-        // escape, or until we've reached MAXITER
+        		// Each pixel in a julia set is calculated using z_n = (z_n-1)² + C
+        		// C is provided as user input, so we need to square z and add C until we
+        		// escape, or until we've reached MAXITER
 
-        // z = z squared + C
-                
+        		// z = z squared + C
+
                 if(++iter==MAXITER) break;
                 else z=add_complex(square_complex(z),julia_C);
             }
@@ -73,6 +80,8 @@ void calculate(complex_t julia_C) {
 
 
 int main(int argc,char **argv) {
+	// Timing
+	double startT = walltime();
 	if(argc==1) {
 		puts("Usage: JULIA\n");
 		puts("Input real and imaginary part. ex: ./julia 0.0 -0.8");
@@ -106,13 +115,7 @@ int main(int argc,char **argv) {
     }
   /* write image to disk */
     savebmp("julia.bmp",buffer,XSIZE,YSIZE);
+	double endT = walltime();
+	printf("Runtime: %f \n", endT-startT);
     return 0;
 }
-
-
-
-
-
-
-
-
