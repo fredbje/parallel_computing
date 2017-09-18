@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <mpi.h>
 #include "julia_mpi.h"
 #include "bitmap.h"
-#include "mpi.h"
 
 double x_start=-2.01;
 double x_end=1;
@@ -37,11 +37,25 @@ complex_t add_real(complex_t a, int b){
 }
 
 void calculate(complex_t julia_C) {
-	for(int i=0;i<XSIZE;i++) {
-		for(int j=0;j<YSIZE;j++) {
+	int rank;
+  	int numprocs;
+	MPI_Init(NULL,NULL);
+ 	MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+ 	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
+
+	if(rank==0){
+
+	}
+
+	for(int i = (rank/numprocs) * XSIZE; i < ((rank+1)/numprocs) * XSIZE; i++){
+		for(int j = 0; j < YSIZE; j++){
+	//for(int i=0;i<XSIZE;i++) {
+	//	for(int j=0;j<YSIZE;j++) {
 
             /* Calculate the number of iterations until divergence for each pixel.
             If divergence never happens, return MAXITER */
+			//printf("rank = %d, i = %d, j = %d \n", rank, i, j);
+
 	    	complex_t c;
         	complex_t z;
 			// complex_t temp;
@@ -66,6 +80,8 @@ void calculate(complex_t julia_C) {
 			pixel[PIXEL(i,j)]=iter;
 		}
 	}
+	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Finalize();
 }
 
 
@@ -82,17 +98,17 @@ int main(int argc,char **argv) {
 	yupper=ycenter+(step*YSIZE)/2;
 	ylower=ycenter-(step*YSIZE)/2;
 
-  // Unlike the mandelbrot set where C is the coordinate being iterated, the
-  // julia C is the same for all points and can be chosed arbitrarily
+  	// Unlike the mandelbrot set where C is the coordinate being iterated, the
+  	// julia C is the same for all points and can be chosed arbitrarily
     complex_t julia_C;
 
-  // Get the command line args
+  	// Get the command line args
     julia_C.re = strtod(argv[1], NULL);
     julia_C.im = strtod(argv[2], NULL);
 
 	calculate(julia_C);
 
-  /* create nice image from iteration counts. take care to create it upside
+  	/* create nice image from iteration counts. take care to create it upside
      down (bmp format) */
     unsigned char *buffer=calloc(XSIZE*YSIZE*3,1);
     for(int i=0;i<XSIZE;i++) {
@@ -101,7 +117,12 @@ int main(int argc,char **argv) {
             fancycolour(buffer+p,pixel[PIXEL(i,j)]);
         }
     }
-  /* write image to disk */
+
+  	/* write image to disk */
     savebmp("julia.bmp",buffer,XSIZE,YSIZE);
+
+//	free(pixel);
+	free(buffer);
+
     return 0;
 }
