@@ -41,7 +41,7 @@ void colorize(uchar* p, cell my_cell) {
 	}
 }
 
-void make_bmp(cell** image, int index){
+void make_bmp(cell* image, int index){
 
 	// create nice image from iteration counts. take care to create it upside
 	// down (bmp format)
@@ -51,7 +51,7 @@ void make_bmp(cell** image, int index){
 	for(int i=0;i<IMG_X;i++) {
 		for(int j=0;j<IMG_Y;j++) {
 			int p=((IMG_Y-j-1)*IMG_X+i)*3;
-		  	colorize(buffer+p, image[i][j]);
+		  	colorize(buffer+p, image[PIXEL(i,j)]);
 		}
 	}
 

@@ -1,7 +1,7 @@
 #include "RPS.h"
 #include <time.h>
 
-void process_chunk(cell* buffer, int buf_size, int frames);
+// void process_chunk(cell* buffer, int buf_size, int frames);
 
 int main(int argc, char** argv){
 

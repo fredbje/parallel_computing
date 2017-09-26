@@ -3,4 +3,7 @@
 *.bmp
 *.mp4
 /PS2/data
-serialRPS
+/PS2/serialRPS
+/PS2/parallelRPS
+/mpitutorial
+/simple_stack_TDT4200

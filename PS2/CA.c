@@ -3,13 +3,13 @@
 cell pick_neighbor(int x, int y, cell** image);
 
 cell** alloc_img(cell* buffer, int index){
-  	cell** image = malloc(IMG_X*sizeof(cell*));
+	cell** image = malloc(IMG_X*sizeof(cell*));
 
-  	for(int ii = 0; ii < IMG_X; ii++){
-    	image[ii] = &buffer[(IMG_X*IMG_Y*index) + IMG_X*ii];
-  	}
+	for(int ii = 0; ii < IMG_X; ii++){
+		image[ii] = &buffer[(IMG_X*IMG_Y*index) + IMG_X*ii];
+	}
 
-  	return image;
+	return image;
 }
 
 void free_img(cell** image){
@@ -76,10 +76,10 @@ cell pick_neighbor(int x, int y, cell** image){
 
 void iterate_image(cell** old_image, cell** next_image){
 
-  for(int xx = 1; xx < IMG_X - 2; xx++){
-    for(int yy = 1; yy < IMG_Y - 2; yy++){
-      // printf("%d %d\n", xx, yy);
-      next_image[xx][yy] = next_cell(xx, yy, old_image);
-    }
-  }
+  	for(int xx = 1; xx < IMG_X - 2; xx++){
+	    for(int yy = 1; yy < IMG_Y - 2; yy++){
+			// printf("%d %d\n", xx, yy);
+			next_image[xx][yy] = next_cell(xx, yy, old_image);
+	    }
+	}
 }

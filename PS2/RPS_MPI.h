@@ -6,9 +6,13 @@
 #include <stdbool.h>
 #include <math.h>
 
+typedef struct {
+  int color;
+  int strength;
+} cell;
+
 #include "CA.h"
 #include "bitmap.h"
-#include "RPS.h"
 
 #define WHITE   0
 #define ROCK    1
@@ -17,6 +21,8 @@
 
 #define IMG_X 512
 #define IMG_Y 512
+
+#define BUF_SIZE 512*512*1
 
 // Each cell is updated based on neighbors of distance 1
 #define BORDER_SIZE 1
