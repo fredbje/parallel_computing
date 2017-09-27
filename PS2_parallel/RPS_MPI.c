@@ -13,7 +13,7 @@ void initialize_petri();
 void exchange_borders(cell** local_petri);
 
 int rank;
-int size;
+int world_size;
 
 // The dimensions of the processor grid. Same for every process
 int p_row_dims;
@@ -29,14 +29,8 @@ int p_north, p_south, p_east, p_west;
 int local_petri_row_dim;
 int local_petri_col_dim;
 int local_petri_size;
-//#define LOCAL_PIXEL(i,j) ((i)+(j)*local_petri_row_dim)
-int local_petri_exp_row_dim;
-int local_petri_exp_col_dim;
-int local_petri_exp_size;
-//#define LOCAL_EXP_PIXEL(i,j) ((i)+(j)*local_petri_exp_row_dim)
 
-// The global petri
-cell** petri;
+// The dimensions for the global petri
 int petri_row_dim = IMG_Y;
 int petri_col_dim = IMG_X;
 int petri_size = IMG_X*IMG_Y;
@@ -50,13 +44,17 @@ MPI_Datatype mpi_cell_t;
 MPI_Datatype receive_t;
 
 // Each process has two local petris to iterate the CA in a lockstep fashion
+cell** petri;
 cell** local_petri_A;
 cell** local_petri_B;
 
 int main(int argc, char** argv){
 
 	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &size);
+	double startT, endT;
+	startT=MPI_Wtime();
+
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	srand(rank);
@@ -65,7 +63,7 @@ int main(int argc, char** argv){
 	dims[0] = p_row_dims;
 	dims[1] = p_col_dims;
 
-	int periods[2]; // 0 for no wrap-around
+	int periods[2]; // Init to 0 for no wrap-around
 	periods[0] = 0;
 	periods[1] = 0;
 
@@ -73,7 +71,7 @@ int main(int argc, char** argv){
 	coords[0] = p_my_row_coord;
 	coords[1] = p_my_col_coord;
 
-	MPI_Dims_create(size, 2, dims);
+	MPI_Dims_create(world_size, 2, dims);
 	MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
 	MPI_Cart_coords(cart_comm, rank, 2, coords);
 
@@ -94,7 +92,7 @@ int main(int argc, char** argv){
 	initialize();
 	create_types();
 
-	for(int i = 0; i < N_ITERATIONS; i++){
+	for(int i = 0; i < N_ITERATIONS/2; i++){
 					//old			new
 		iterate_CA(local_petri_A, local_petri_B, local_petri_row_dim, local_petri_col_dim);
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -111,26 +109,31 @@ int main(int argc, char** argv){
 	}
 
 	gather_petri(local_petri_A);
-	MPI_Barrier(MPI_COMM_WORLD);
 
 	if(rank==0){
 		printf("Writing to file\n");
 		make_bmp(petri);
 	}
-	printf("Rank %d about to free stuff\n", rank);
 
 	// free_stuff()
-	MPI_Barrier(MPI_COMM_WORLD);
 	if(rank==0){
 		free_petri(petri);
 	}
+
 	free_petri(local_petri_A);
 	free_petri(local_petri_B);
+	MPI_Type_free(&border_row_t);
+	MPI_Type_free(&border_col_t);
+	MPI_Type_free(&receive_t);
+	MPI_Type_free(&local_petri_t);
+	MPI_Type_free(&mpi_cell_t);
+	MPI_Comm_free(&cart_comm);
 
+	endT=MPI_Wtime();
+	printf("Time elapsed for process %d: %f [s]\n", rank, endT-startT);
 	MPI_Finalize();
   	return 0;
 }
-
 
 void create_types(){
 	const int    nitems=2;
@@ -167,7 +170,7 @@ void initialize(){
 	local_petri_A = allocate_petri(local_petri_row_dim, local_petri_col_dim);
 	local_petri_B = allocate_petri(local_petri_row_dim, local_petri_col_dim);
 
-	 for(int ii = 0; ii < N_START_CELLS / size; ii++){
+	 for(int ii = 0; ii < N_START_CELLS / world_size; ii++){
     	int r_row = rand() % (local_petri_row_dim - 1);
     	int r_col = rand() % (local_petri_col_dim - 1);
     	int r_color = rand() % 4;
@@ -189,7 +192,6 @@ void initialize(){
 	// }	
 }
 
-
 void exchange_borders(cell** local_petri){
 				//sendbuf														dest		TAG	receivebuf														source		TAG	
 	MPI_Sendrecv(&local_petri[1][0],						1, border_row_t, 	p_north, 	0, 	&local_petri[local_petri_row_dim-1][0], 	1, border_row_t,	p_south, 	0, cart_comm, MPI_STATUS_IGNORE);
@@ -199,22 +201,21 @@ void exchange_borders(cell** local_petri){
 }
 
 void gather_petri(cell** local_petri){
-	MPI_Request request;
+	MPI_Request send_request, recv_request;
 	MPI_Status status;
-	MPI_Isend(&local_petri[1][1], 1, local_petri_t, 0, 0, MPI_COMM_WORLD, &request);
+
+	MPI_Isend(&local_petri[1][1], 1, local_petri_t, 0, 0, MPI_COMM_WORLD, &send_request);
   	if(rank == 0){   		
-  		for(int i = 0; i < size; i++){
-  			MPI_Irecv(&petri[0][(i/p_col_dims)*petri_col_dim*(local_petri_row_dim-2) + (i%p_col_dims)*(local_petri_col_dim-2)], 
-  					1, receive_t, i, 0, MPI_COMM_WORLD, &request);
+  		for(int i = 0; i < world_size; i++){
+  			MPI_Irecv(&petri[(i/p_col_dims)*(local_petri_row_dim-2)][(i%p_col_dims)*(local_petri_col_dim-2)], 
+  					1, receive_t, i, 0, MPI_COMM_WORLD, &recv_request);
+  			// MPI_Irecv(&petri[0][(i/p_col_dims)*petri_col_dim*(local_petri_row_dim-2) + (i%p_col_dims)*(local_petri_col_dim-2)], 
+  			// 		1, receive_t, i, 0, MPI_COMM_WORLD, &recv_request);
+  			MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
   		}
   	}
-  	MPI_Wait(&request, &status);
-	// TODO find out what test and wait does. Free memory.
+  	MPI_Wait(&send_request, MPI_STATUS_IGNORE);
 }
-
-
-
-
 
 
 

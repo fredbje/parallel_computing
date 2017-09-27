@@ -1,4 +1,4 @@
-CFLAGS+= -std=c99 -g -O3 -Wall
+CFLAGS+= -std=c99 -g -O1 -Wall
 
 # by uncommenting this line the preprocessor will see #ifdef DEBUG as true
 CFLAGS+= -DDEBUG
