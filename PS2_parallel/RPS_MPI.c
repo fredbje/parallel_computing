@@ -5,12 +5,12 @@
 #include <stddef.h>
 #include "RPS_MPI.h"
 
-void initialize();
-void iterate_CA();
-void gather_petri(cell** local_petri);
-void create_types();
-void initialize_petri();
+void create_cart_comm();
+void create_mpi_types();
+void init_local_petri();
 void exchange_borders(cell** local_petri);
+void gather_petri(cell** local_petri);
+void free_mpi_types();
 
 int rank;
 int world_size;
@@ -23,6 +23,7 @@ int p_col_dims;
 int p_my_row_coord;
 int p_my_col_coord;
 
+// Rank of adjacent process in cardinal direction
 int p_north, p_south, p_east, p_west;
 
 // The dimensions for the process local petri
@@ -35,41 +36,90 @@ int petri_row_dim = IMG_Y;
 int petri_col_dim = IMG_X;
 int petri_size = IMG_X*IMG_Y;
 
+// Cartesian communicator
 MPI_Comm cart_comm;
 
-MPI_Datatype border_row_t;  
-MPI_Datatype border_col_t;  
-MPI_Datatype local_petri_t; 
-MPI_Datatype mpi_cell_t;    
-MPI_Datatype receive_t;
-
 // Each process has two local petris to iterate the CA in a lockstep fashion
-cell** petri;
 cell** local_petri_A;
 cell** local_petri_B;
+
+// The root process gathers the local petris in petri and writes it to file
+cell** petri;
+
+// Petris are arrays of cell_t
+MPI_Datatype cell_t; 
+
+// Border exchange types
+MPI_Datatype border_row_t;  
+MPI_Datatype border_col_t;  
+
+// Used in gather_petri() to gather local petris in global petri in correct order 
+MPI_Datatype local_petri_send_t;    
+MPI_Datatype local_petri_receive_t;
+
+/////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char** argv){
 
 	MPI_Init(&argc, &argv);
-	double startT, endT;
-	startT=MPI_Wtime();
-
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	double start_time = MPI_Wtime();
+	
 	srand(rank);
 
-	int dims[2];
-	dims[0] = p_row_dims;
-	dims[1] = p_col_dims;
+	create_cart_comm();
+	init_local_petri();
+	create_mpi_types();
 
-	int periods[2]; // Init to 0 for no wrap-around
-	periods[0] = 0;
-	periods[1] = 0;
+	for(int i = 0; i < N_ITERATIONS; i++){
+		if(i % 2 == 0){
+			iterate_CA(local_petri_A, local_petri_B, local_petri_row_dim, local_petri_col_dim);
+			exchange_borders(local_petri_B);
+		}
+		else{
+			iterate_CA(local_petri_B, local_petri_A, local_petri_row_dim, local_petri_col_dim);
+			exchange_borders(local_petri_A);
+		}
+	}
 
+	if(rank == 0){
+		petri = allocate_petri(petri_row_dim, petri_col_dim);
+	}
+
+	if(N_ITERATIONS % 2 == 0){
+		gather_petri(local_petri_A);
+	}
+	else{
+		gather_petri(local_petri_B);
+	}	
+
+	if(rank == 0){
+		printf("Writing petri to file\n");
+		make_bmp(petri);
+	}
+
+	if(rank == 0){
+		free_petri(petri);
+	}
+	free_petri(local_petri_A);
+	free_petri(local_petri_B);
+	free_mpi_types();
+	
+	double end_time = MPI_Wtime();
+	printf("Time elapsed for process %d: %f [s]\n", rank, end_time-start_time);
+
+	MPI_Finalize();
+  	return 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void create_cart_comm(){
+	int dims[2] = {0, 0}; // Init to 0 so MPI_Dims_create will change it
+	int periods[2] = {0, 0}; // Init to 0 for no wrap-around
 	int coords[2];
-	coords[0] = p_my_row_coord;
-	coords[1] = p_my_col_coord;
 
 	MPI_Dims_create(world_size, 2, dims);
 	MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
@@ -83,59 +133,9 @@ int main(int argc, char** argv){
 
 	p_my_row_coord = coords[0];
 	p_my_col_coord = coords[1];
-
-// printf("rank: %d p_my_row_coord: %d p_my_col_coord: %d p_row_dims: %d p_col_dims: %d\n", rank, p_my_row_coord, p_my_col_coord, p_row_dims, p_col_dims);
-	// printf("rank: %d p_north: %d p_south: %d p_west: %d p_east: %d \n", rank, p_north, p_south, p_west, p_east);
-	////////////////////////////////
-	////////////////////////////////
-
-	initialize();
-	create_types();
-
-	for(int i = 0; i < N_ITERATIONS/2; i++){
-					//old			new
-		iterate_CA(local_petri_A, local_petri_B, local_petri_row_dim, local_petri_col_dim);
-		MPI_Barrier(MPI_COMM_WORLD);
-		exchange_borders(local_petri_B);
-		MPI_Barrier(MPI_COMM_WORLD);
-		iterate_CA(local_petri_B, local_petri_A, local_petri_row_dim, local_petri_col_dim);
-		MPI_Barrier(MPI_COMM_WORLD);
-		exchange_borders(local_petri_A);
-		MPI_Barrier(MPI_COMM_WORLD);
-	}
-
-	if(rank==0){
-		petri = allocate_petri(petri_row_dim, petri_col_dim);
-	}
-
-	gather_petri(local_petri_A);
-
-	if(rank==0){
-		printf("Writing to file\n");
-		make_bmp(petri);
-	}
-
-	// free_stuff()
-	if(rank==0){
-		free_petri(petri);
-	}
-
-	free_petri(local_petri_A);
-	free_petri(local_petri_B);
-	MPI_Type_free(&border_row_t);
-	MPI_Type_free(&border_col_t);
-	MPI_Type_free(&receive_t);
-	MPI_Type_free(&local_petri_t);
-	MPI_Type_free(&mpi_cell_t);
-	MPI_Comm_free(&cart_comm);
-
-	endT=MPI_Wtime();
-	printf("Time elapsed for process %d: %f [s]\n", rank, endT-startT);
-	MPI_Finalize();
-  	return 0;
 }
 
-void create_types(){
+void create_mpi_types(){
 	const int    nitems=2;
 	int          blocklengths[2] = {1,1};
 	MPI_Aint     offsets[2];
@@ -144,33 +144,33 @@ void create_types(){
 	offsets[0] = offsetof(cell, color);
 	offsets[1] = offsetof(cell, strength);
 
-	MPI_Type_create_struct(nitems, blocklengths, offsets, types, &mpi_cell_t);
-	MPI_Type_commit(&mpi_cell_t);
+	MPI_Type_create_struct(nitems, blocklengths, offsets, types, &cell_t);
+	MPI_Type_commit(&cell_t);
 
-	MPI_Type_vector(local_petri_col_dim, 1, 1, mpi_cell_t, &border_row_t); 
+	MPI_Type_vector(local_petri_col_dim, 1, 1, cell_t, &border_row_t); 
 	MPI_Type_commit(&border_row_t);
 
-	MPI_Type_vector(local_petri_row_dim, 1, local_petri_col_dim, mpi_cell_t, &border_col_t); 
+	MPI_Type_vector(local_petri_row_dim, 1, local_petri_col_dim, cell_t, &border_col_t); 
 	MPI_Type_commit(&border_col_t);
 
-	MPI_Type_vector(local_petri_row_dim-2, local_petri_col_dim-2, local_petri_col_dim, mpi_cell_t, &local_petri_t);
-	MPI_Type_commit(&local_petri_t);
+	MPI_Type_vector(local_petri_row_dim-2, local_petri_col_dim-2, local_petri_col_dim, cell_t, &local_petri_send_t);
+	MPI_Type_commit(&local_petri_send_t);
 
-	MPI_Type_vector(local_petri_row_dim-2, local_petri_col_dim-2, petri_col_dim, mpi_cell_t, &receive_t);
-	MPI_Type_commit(&receive_t);
+	MPI_Type_vector(local_petri_row_dim-2, local_petri_col_dim-2, petri_col_dim, cell_t, &local_petri_receive_t);
+	MPI_Type_commit(&local_petri_receive_t);
 }
 
-
-void initialize(){
-	local_petri_row_dim = petri_row_dim/p_row_dims+2;
-	local_petri_col_dim = petri_col_dim/p_col_dims+2;
+void init_local_petri(){
+	// Local petris has extra space for borders
+	local_petri_row_dim = petri_row_dim/p_row_dims + 2;
+	local_petri_col_dim = petri_col_dim/p_col_dims + 2;
 	local_petri_size = local_petri_row_dim*local_petri_col_dim;
 
-	// Allocating extra space for borders
 	local_petri_A = allocate_petri(local_petri_row_dim, local_petri_col_dim);
 	local_petri_B = allocate_petri(local_petri_row_dim, local_petri_col_dim);
 
-	 for(int ii = 0; ii < N_START_CELLS / world_size; ii++){
+	// Some cells may be chosen twice - not important
+	for(int i = 0; i < N_START_CELLS / world_size; i++){
     	int r_row = rand() % (local_petri_row_dim - 1);
     	int r_col = rand() % (local_petri_col_dim - 1);
     	int r_color = rand() % 4;
@@ -178,22 +178,10 @@ void initialize(){
     	local_petri_A[r_row][r_col].color = r_color;
     	local_petri_A[r_row][r_col].strength = 1;
   	}
-
-	// for(int r = 0; r < local_petri_row_dim; r++){
-	// 	for(int c = 0; c < local_petri_col_dim; c++){
-	// 		if(rank == 0){
-	// 			local_petri_A[r][c].color = ROCK; // Red
-	// 		}else if(rank == 1){
-	// 			local_petri_A[r][c].color = PAPER; // Blue
-	// 		}else if(rank == 2){
-	// 			local_petri_A[r][c].color = SCISSOR; // Green
-	// 		}
-	// 	}
-	// }	
 }
 
 void exchange_borders(cell** local_petri){
-				//sendbuf														dest		TAG	receivebuf														source		TAG	
+				//sendbuf														dest			receivebuf														source			
 	MPI_Sendrecv(&local_petri[1][0],						1, border_row_t, 	p_north, 	0, 	&local_petri[local_petri_row_dim-1][0], 	1, border_row_t,	p_south, 	0, cart_comm, MPI_STATUS_IGNORE);
 	MPI_Sendrecv(&local_petri[local_petri_row_dim-2][0],	1, border_row_t, 	p_south, 	0, 	&local_petri[0][0], 						1, border_row_t, 	p_north, 	0, cart_comm, MPI_STATUS_IGNORE);
 	MPI_Sendrecv(&local_petri[0][local_petri_col_dim-2], 	1, border_col_t, 	p_east, 	0, 	&local_petri[0][0], 						1, border_col_t, 	p_west, 	0, cart_comm, MPI_STATUS_IGNORE);
@@ -203,20 +191,29 @@ void exchange_borders(cell** local_petri){
 void gather_petri(cell** local_petri){
 	MPI_Request send_request, recv_request;
 	MPI_Status status;
-
-	MPI_Isend(&local_petri[1][1], 1, local_petri_t, 0, 0, MPI_COMM_WORLD, &send_request);
+	// Don't include borders when sending local petri to global petri
+	MPI_Isend(&local_petri[1][1], 1, local_petri_send_t, 0, 0, MPI_COMM_WORLD, &send_request);
+	int start_row, start_col;
   	if(rank == 0){   		
   		for(int i = 0; i < world_size; i++){
-  			MPI_Irecv(&petri[(i/p_col_dims)*(local_petri_row_dim-2)][(i%p_col_dims)*(local_petri_col_dim-2)], 
-  					1, receive_t, i, 0, MPI_COMM_WORLD, &recv_request);
-  			// MPI_Irecv(&petri[0][(i/p_col_dims)*petri_col_dim*(local_petri_row_dim-2) + (i%p_col_dims)*(local_petri_col_dim-2)], 
-  			// 		1, receive_t, i, 0, MPI_COMM_WORLD, &recv_request);
+  			// Global petri coordinate of first element in local petri 
+  			start_row = (i/p_col_dims)*(local_petri_row_dim-2);
+  			start_col = (i%p_col_dims)*(local_petri_col_dim-2);
+
+  			// Utilize MPI types to arrange local petri correctly in global petri
+  			MPI_Irecv(&petri[start_row][start_col], 1, local_petri_receive_t, i, 0, MPI_COMM_WORLD, &recv_request);
   			MPI_Wait(&recv_request, MPI_STATUS_IGNORE);
   		}
   	}
   	MPI_Wait(&send_request, MPI_STATUS_IGNORE);
 }
 
-
-
+void free_mpi_types(){
+	MPI_Type_free(&border_row_t);
+	MPI_Type_free(&border_col_t);
+	MPI_Type_free(&local_petri_receive_t);
+	MPI_Type_free(&local_petri_send_t);
+	MPI_Type_free(&cell_t);
+	MPI_Comm_free(&cart_comm);
+}
 

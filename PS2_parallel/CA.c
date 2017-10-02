@@ -18,12 +18,6 @@ void free_petri(cell** petri){
     free(petri);
 }
 
-// void swap_petris(cell*** petri_A, cell*** petri_B){
-//     cell** temp = *petri_A;
-//     *petri_A = *petri_B;
-//     *petri_B = temp;
-// }
-
 bool beats(cell me, cell other){
   return
     (((me.color == SCISSOR) && (other.color == PAPER)) ||
@@ -80,7 +74,6 @@ cell pick_neighbor(int row, int col, cell** petri){
 void iterate_CA(cell** old_petri, cell** next_petri, int row_dim, int col_dim){
   for(int r = 1; r < row_dim - 1; r++){
     for(int c = 1; c < col_dim - 1; c++){
-      // printf("%d %d\n", xx, yy);
       next_petri[r][c] = next_cell(r, c, old_petri);
     }
   }

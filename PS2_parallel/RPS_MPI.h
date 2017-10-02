@@ -22,7 +22,7 @@ typedef struct {
 #define IMG_X 512
 #define IMG_Y 512
 
-#define N_ITERATIONS 10000//10000
+#define N_ITERATIONS 10000
 
 #define N_START_CELLS 100
 
