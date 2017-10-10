@@ -50,7 +50,7 @@ void make_bmp(cell** image){
 	}
 
 	char filename[50];
-	sprintf(filename, "data/petri.bmp");
+	sprintf(filename, "MPI_petri.bmp");
 	/* write image to disk */
 	printf("Saving BMP\n");
 	savebmp(filename,buffer, IMG_X, IMG_Y);
