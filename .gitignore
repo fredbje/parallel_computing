@@ -2,8 +2,10 @@
 *.o
 *.bmp
 *.mp4
-/PS2/data
-/PS2/serialRPS
-/PS2/parallelRPS
+/fredbje_ps2/data
+/fredbje_ps2/serialRPS
+/fredbje_ps2/RPSparallel
 /mpitutorial
 /simple_stack_TDT4200
+*.dSYM
+/fredbje_ps3/pthreadRPS
