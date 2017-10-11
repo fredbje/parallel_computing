@@ -1,7 +1,5 @@
 #include "CA.h"
 
-#define TRANS(x, y) ((x)+(y)*IMG_X)
-
 cell pick_neighbor(int x, int y, cell* image, int chosen);
 
 bool beats(cell me, cell other){
@@ -55,23 +53,22 @@ cell pick_neighbor(int x, int y, cell* image, int chosen){
     int c_y = chosen / 3;
 
     return image[TRANS(x + c_x - 1, y + c_y - 1)];
-}
+} 
 
-void iterate_image(cell* old_image, cell* next_image, int start, int finish){
+void iterate_image(cell* old_image, cell* next_image, int start, int stop){
 
-  int seed = rand();
-  seed = (seed * 0x5DEECE66DL + 0xBL) & 0xFFFFFFFFFFFFL;
+    unsigned int seed = rand();
 
-    for(int xx = 1; xx < IMG_X - 2; xx++){
-        for(int yy = 1; yy < IMG_Y - 2; yy++){
-            next_image[TRANS(xx,yy)] = next_cell(xx, yy, old_image, (seed % 8) + 8*(seed < 8));
+    for(int xx = start; xx < stop; xx++){
+        for(int yy = 1; yy < IMG_Y - 1; yy++){
+            seed = (214013*seed+2531011);
+            next_image[TRANS(xx, yy)] = next_cell(xx, yy, old_image, ((seed >> 16)&0x7FFF) % 8);
         }
     }
 }
 
 
-
-
+ 
 
 
 

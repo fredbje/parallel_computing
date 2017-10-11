@@ -16,7 +16,7 @@ typedef struct {
 
 #define TRANS(x, y) ((x)+(y)*IMG_X)
 
-#define ITERATIONS 300
+#define ITERATIONS 3000
 #define BORDER_SIZE 1
 
 #define WHITE   0

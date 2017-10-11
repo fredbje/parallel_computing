@@ -1,7 +1,5 @@
 #include "bitmap.h"
 
-#define TRANS(x, y) ((x)+(y)*IMG_X)
-
 /* save 24-bits bmp file, buffer must be in bmp format: upside-down */
 void savebmp(char *name,uchar *buffer,int x,int y) {
 	FILE *f=fopen(name,"wb");
@@ -17,7 +15,6 @@ void savebmp(char *name,uchar *buffer,int x,int y) {
 	fwrite(buffer,1,IMG_X*IMG_Y*3,f);
 	fclose(f);
 }
-
 
 /* given iteration number, set a colour */
 void colorize(uchar* p, cell my_cell) {
@@ -43,7 +40,7 @@ void colorize(uchar* p, cell my_cell) {
   }
 }
 
-void make_bmp(cell* image, int index){
+void make_bmp(cell* image, char* filename){
 
   // create nice image from iteration counts. take care to create it upside
   // down (bmp format)
@@ -57,28 +54,9 @@ void make_bmp(cell* image, int index){
         }
     }
 
-    char filename [50];
-    sprintf(filename, "data/CA-%d.bmp", index);
+    char ext_filename [50];
+    sprintf(ext_filename, "data/%s.bmp", filename);
     /* write image to disk */
-    savebmp(filename,buffer,IMG_X,IMG_Y);
+    savebmp(ext_filename,buffer,IMG_X,IMG_Y);
 }
 
-void make_bmp_sized(cell* image, int index, int x, int y){
-
-    // create nice image from iteration counts. take care to create it upside
-    // down (bmp format)
-
-    // used to be calloc with 1 as arg 2, thus no sizeof(??)
-    unsigned char* buffer = malloc(x*y*3);
-    for(int i=0;i<x;i++) {
-        for(int j=0;j<y;j++) {
-            int p=((y-j-1)*x+i)*3;
-            colorize(buffer+p, image[TRANS(i,j)]);
-        }
-    }
-
-    char filename [50];
-    sprintf(filename, "data/CA-%d.bmp", index);
-    /* write image to disk */
-    savebmp(filename,buffer,x,y);
-}
