@@ -4,15 +4,18 @@
 #include <math.h>
 
 void swap_petris();
-void* PrintHello(void *threadid);
+void* entry_function(void *threadid);
 void init_petri();
 
 cell* petri_A;
 cell* petri_B;
 
+int num_threads;
 int* thread_ids;
 pthread_t* threads;
-pthread_barrier_t barrier;
+pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+int count = 0;
 
 int main(int argc, char** argv){
 
@@ -20,7 +23,7 @@ int main(int argc, char** argv){
         puts("Input number of threads. ex: ./julia 4");
         return 0;
     }
-    int num_threads = strtod(argv[1], NULL);
+    num_threads = strtod(argv[1], NULL);
     int temp = sqrt(num_threads);
     if (num_threads != temp*temp){
         puts("Number of threads must be a square integer");
@@ -46,8 +49,6 @@ int main(int argc, char** argv){
             exit(-1);
         }
     }
-
-    
 
     for (int i=0; i < num_threads; i++) {
         pthread_join(threads[i], NULL);
@@ -85,24 +86,38 @@ void init_petri(cell* petri){
 
 void* entry_function(void *thread_id){
 
-    int bound = height / nthreads;
-    int start = *thread_id * bound;
+    int bound = IMG_Y / num_threads;
+    int start = *((int*)thread_id) * bound;
     int finish = start + bound;
    
    for(int i = 0; i < ITERATIONS; i++){
+        if(i % 100 == 0 && *((int*)thread_id)==0){printf("Progress %d %%\n", i*100 / ITERATIONS);}
         if(i % 2 == 0){
             iterate_image(petri_A, petri_B, start, finish);
-            err = pthread_barrier_wait(&barr);     
-        }
-        else{
+            pthread_mutex_lock(&mut);
+            count = count+1;
+            if(count == num_threads){
+                count = 0;
+                pthread_cond_signal(&cond);
+                pthread_cond_signal(&cond);
+                pthread_cond_signal(&cond);
+            }else{
+                pthread_cond_wait(&cond, &mut);
+            }
+        }else{
             iterate_image(petri_B, petri_A, start, finish);
-            err = pthread_barrier_wait(&barr); 
+            pthread_mutex_lock(&mut);
+            count = count+1;
+            if(count == num_threads){
+                count = 0;
+                pthread_cond_signal(&cond);
+                pthread_cond_signal(&cond);
+                pthread_cond_signal(&cond);
+            }else{
+                pthread_cond_wait(&cond, &mut);
+            }
         }
-
-        if(err != 0 && err != PTHREAD_BARRIER_SERIAL_THREAD){
-            printf("Could not wait on barrier\n");
-            return -1;
-        }
+        pthread_mutex_unlock(&mut);
     }
     
    return NULL;
