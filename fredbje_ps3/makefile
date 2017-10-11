@@ -1,7 +1,10 @@
 SHELL := /bin/bash
 
+
+omp :
+	gcc -std=c99 -g -O3 -fopenmp CA.c bitmap.c RPS.c -o ompRPS.out
 pth :
-	gcc -std=c99 -g -O1 -Wall CA.c bitmap.c p_RPS.c -o pthreadRPS -lm -pthread
+	gcc -std=c99 -g -O3 CA.c bitmap.c p_RPS.c -o pthreadRPS -lm -pthread
 
 remake : clean all
 
