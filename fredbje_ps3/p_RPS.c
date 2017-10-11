@@ -3,7 +3,6 @@
 #include <pthread.h>
 #include <math.h>
 
-void swap_petris();
 void* entry_function(void *threadid);
 void init_petri();
 
@@ -65,12 +64,6 @@ int main(int argc, char** argv){
     free(petri_A);
     free(petri_B);
     return 0;
-}
-
-void swap_petris(){
-    cell* tmp1 = petri_A;
-    petri_A = petri_B;
-    petri_B = tmp1;
 }
 
 void init_petri(cell* petri){
