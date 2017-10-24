@@ -19,10 +19,10 @@ int count = 0;
 int main(int argc, char** argv){
 
     if(argc==1) {
-        puts("Input number of threads. ex: ./julia 4");
+        puts("Input number of threads. ex: ./RPS_pthread 4");
         return 0;
     }
-    num_threads = strtod(argv[1], NULL);
+    num_threads = (int)strtod(argv[1], NULL);
     int temp = sqrt(num_threads);
     if (num_threads != temp*temp){
         puts("Number of threads must be a square integer");
@@ -36,6 +36,8 @@ int main(int argc, char** argv){
     petri_B = calloc(IMG_X*IMG_Y, sizeof(cell));
 
     init_petri(petri_A);
+
+    clock_t start_clock = clock();
 
     thread_ids = (int*)malloc(num_threads*sizeof(int));
     threads = (pthread_t*)malloc(num_threads*sizeof(pthread_t));
@@ -53,10 +55,14 @@ int main(int argc, char** argv){
         pthread_join(threads[i], NULL);
     }
 
+    clock_t end_clock = clock();
+    double time_spent = (double)(end_clock-start_clock) / CLOCKS_PER_SEC;
+    printf("Time spent on main section: %f\n", time_spent);
+
     if(ITERATIONS % 2 == 0){
-        make_bmp(petri_A, 0);
+        make_bmp(petri_A, "RPS_pthread");
     } else {
-        make_bmp(petri_B, 0);
+        make_bmp(petri_B, "RPS_pthread");
     }
 
     free(threads);
@@ -84,28 +90,23 @@ void* entry_function(void *thread_id){
     int finish = start + bound;
    
    for(int i = 0; i < ITERATIONS; i++){
-        if(i % 100 == 0 && *((int*)thread_id)==0){printf("Progress %d %%\n", i*100 / ITERATIONS);}
         if(i % 2 == 0){
             iterate_image(petri_A, petri_B, start, finish);
             pthread_mutex_lock(&mut);
-            count = count+1;
+            count++;
             if(count == num_threads){
                 count = 0;
-                pthread_cond_signal(&cond);
-                pthread_cond_signal(&cond);
-                pthread_cond_signal(&cond);
+                for(int i = 0; i < num_threads; i++){pthread_cond_signal(&cond);}
             }else{
                 pthread_cond_wait(&cond, &mut);
             }
         }else{
             iterate_image(petri_B, petri_A, start, finish);
             pthread_mutex_lock(&mut);
-            count = count+1;
+            count++;
             if(count == num_threads){
                 count = 0;
-                pthread_cond_signal(&cond);
-                pthread_cond_signal(&cond);
-                pthread_cond_signal(&cond);
+                for(int i = 0; i < num_threads; i++){pthread_cond_signal(&cond);}
             }else{
                 pthread_cond_wait(&cond, &mut);
             }

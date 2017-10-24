@@ -8,4 +8,7 @@
 /mpitutorial
 /simple_stack_TDT4200
 *.dSYM
-/fredbje_ps3/pthreadRPS
+/fredbje_ps3/RPS_pthread
+/fredbje_ps3/RPS_omp
+
+
