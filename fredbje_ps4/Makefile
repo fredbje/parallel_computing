@@ -1,4 +1,4 @@
-CCFLAGS = -Wall -Wshadow -O2 -g
+CCFLAGS = -Wall -Wshadow -O2 -g 
 LFLAGS = -lm -lcblas
 
 

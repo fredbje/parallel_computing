@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     //IT MIGHT BE HARD TO GET ANY SPEEDUP WITH A NETWORK THIS SMALL! Scale It up
     //Example : genann *ann = genann_init(2, 2, 64, 1);
     ////////////////////////////////////////////////////////////////////////////
-    genann *ann = genann_init(4, 2, 5, 3);
+    genann *ann = genann_init(4, 2, 64, 3);
 
     int i, j;
     int loops = 5000;

@@ -24,6 +24,7 @@
  */
 
 #include "genann_blas.h"
+#include "cblas.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +32,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include "cblas.h"
 
 
 #define LOOKUP_SIZE 4096
@@ -222,15 +222,12 @@ double const *genann_run(genann const *ann, double const *inputs) {
 
     for (h = 0; h < ann->hidden_layers; ++h) {
         x++;
-        // printf("Before memcpy: x[1]: %f, i[0]: %f\n", x[1], i[0]);
         memcpy(x, i, sizeof(double) * (h == 0 ? ann->inputs : ann->hidden));
         x--;
-        // printf("After memcpy: x[1]: %f, i[0]: %f\n", x[1], i[0]);
         cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->hidden, (h == 0 ? ann->inputs : ann->hidden) + 1, 
                                     1.0, w, (h == 0 ? ann->inputs : ann->hidden) + 1, x, 1, 0.0, o, 1);
         for (j = 0; j < ann->hidden; ++j) {
             *o = act(*o);
-            //printf("h = %d, j = %d, o = %f \n", h, j, *o);
             o++;
         }
         w += ((h == 0 ? ann->inputs : ann->hidden) + 1) * ann->hidden;
@@ -259,7 +256,6 @@ double const *genann_run(genann const *ann, double const *inputs) {
     //     }
     //     i += (h == 0 ? ann->inputs : ann->hidden);
     // }
-
     
     double const *ret = o;
 
@@ -278,7 +274,6 @@ double const *genann_run(genann const *ann, double const *inputs) {
     w += ((ann->hidden_layers ? ann->hidden : ann->inputs) + 1) * ann->outputs;
     free(x);
 
-
     ///////////////////// dot product implementation - working /////////////////////////
     // for (j = 0; j < ann->outputs; ++j) {
     //     double sum = *w++ * -1.0;
@@ -296,15 +291,6 @@ double const *genann_run(genann const *ann, double const *inputs) {
     //     *o++ = acto(sum);
     // }
 
-    /* Sanity check that we used all weights and wrote all outputs. */
-
-    //##########################################################################
-    // Commented out because it is not needed when doing the matrix vector
-    //multiplication with BLAS
-    //##########################################################################
-    //assert(w - ann->weight == ann->total_weights);
-    //assert(o - ann->output == ann->total_neurons);
-
     return ret;
 }
 
@@ -313,7 +299,7 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
     /* To begin with, we must run the network forward. */
     genann_run(ann, inputs);
 
-    int h, j, k;
+    int h, j;
 
     /* First set the output layer deltas. */
     {
@@ -336,6 +322,11 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
     }
 
 
+    double *delta_ptr;
+    if(ann->hidden_layers){
+        delta_ptr = (double*)malloc(sizeof(double)*ann->hidden);
+    }
+
     /* Set hidden layer deltas, start on last layer and work backwards. */
     /* Note that loop is skipped in the case of hidden_layers == 0. */
     for (h = ann->hidden_layers - 1; h >= 0; --h) {
@@ -350,33 +341,40 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
         /* Find first weight in following layer (which may be hidden or output). */
         double const * const ww = ann->weight + ((ann->inputs+1) * ann->hidden) + ((ann->hidden+1) * ann->hidden * (h));
 
-    //##########################################################################
-    //##########################################################################
-    //##########################################################################
-    //TODO 2 The double for loops in the following section are doing
-    //a matrix vector multiplication(see TODO 1).
-    //Optimize it by calling a BLAS library.
-    //##########################################################################
-    //##########################################################################
-    //##########################################################################
+        //##########################################################################
+        //##########################################################################
+        //##########################################################################
+        //TODO 2 The double for loops in the following section are doing
+        //a matrix vector multiplication(see TODO 1).
+        //Optimize it by calling a BLAS library.
+        //##########################################################################
+        //##########################################################################
+        //##########################################################################
 
-        ///////////////////// matrix vector product implementation - not working /////////////////////////
+        ///////////////////// matrix vector product implementation - working /////////////////////////
         
-
+        cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->hidden, (h == ann->hidden_layers-1 ? ann->outputs : ann->hidden),
+                                    1.0, ww + 1, (h == ann->hidden_layers-1 ? ann->outputs : ann->hidden) + ann->hidden + 1, 
+                                    dd, 1, 0.0, delta_ptr, 1);
+        for (j = 0; j < ann->hidden; ++j) {
+            *d = *o * (1.0 - *o) * *delta_ptr;
+            ++o; ++d; ++delta_ptr;
+        }
+        delta_ptr -= ann->hidden;
 
         ///////////////////// dot product implementation - working /////////////////////////
-        for (j = 0; j < ann->hidden; ++j) {
-            double delta = cblas_ddot((h == ann->hidden_layers-1 ? ann->outputs : ann->hidden), 
-                ww + (j + 1), (ann->hidden + 1), dd, 1);
-            *d = *o * (1.0-*o) * delta;
-            ++d; ++o;
-        }
+        // for (j = 0; j < ann->hidden; ++j) {
+        //     double delta = cblas_ddot((h == ann->hidden_layers-1 ? ann->outputs : ann->hidden), 
+        //                                                ww + (j + 1), (ann->hidden + 1), dd, 1);
+        //     *d = *o * (1.0 - *o) * delta;
+        //     ++d; ++o;
+        // }
 
         ///////////////////// original implementation /////////////////////////
         // for (j = 0; j < ann->hidden; ++j) {
         //     double delta = 0;
 
-        //     for (k = 0; k < (h == ann->hidden_layers-1 ? ann->outputs : ann->hidden); ++k) {
+        //     for (int k = 0; k < (h == ann->hidden_layers-1 ? ann->outputs : ann->hidden); ++k) {
         //         const double forward_delta = dd[k];
         //         const int windex = k * (ann->hidden + 1) + (j + 1);
         //         const double forward_weight = ww[windex];
@@ -389,6 +387,10 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
         // }
     }
 
+    if(ann->hidden_layers){
+        free(delta_ptr);
+    }
+    
 
     /* Train the outputs. */
     {
@@ -434,8 +436,6 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
         //     }
         //     ++d;
         // }
-
-        // assert(w - ann->weight == ann->total_weights);
     }
 
 
