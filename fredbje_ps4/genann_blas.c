@@ -210,33 +210,43 @@ double const *genann_run(genann const *ann, double const *inputs) {
     //##########################################################################
     //##########################################################################
 
-    ///////////////////// matrix vector multiplication implementation - not working /////////////////////////
-    // double *x = (double*)malloc(sizeof(double) * ((ann->inputs >= ann->hidden ? ann->inputs : ann->hidden) + 1));
-    // x[0] = -1.0;
-    // for (h = 0; h < ann->hidden_layers; ++h) {
-    //     memcpy(x + 1, i, (h == 0 ? ann->inputs : ann->hidden));
-    //     cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->hidden, (h == 0 ? ann->inputs : ann->hidden) + 1, 
-    //                                 1.0, w, (h == 0 ? ann->inputs : ann->hidden) + 1, x, 1, 0.0, o, 1);
-    //     for (j = 0; j < ann->hidden; ++j) {
-    //         *o = act(*o);
-    //         //printf("h = %d, j = %d, o = %f \n", h, j, *o);
-    //         o++;
-    //     }
-    //     w += ((h == 0 ? ann->inputs : ann->hidden) + 1) * ann->hidden;
-    //     i += (h == 0 ? ann->inputs : ann->hidden);
-    // }
-    // free(x);
+    ///////////////////// matrix vector multiplication implementation - working /////////////////////////
+    int x_size;
+    if(ann->hidden_layers){
+        x_size = (ann->hidden >= ann->inputs ? ann->hidden : ann->inputs) + 1;
+    }else{
+        x_size = ann->inputs + 1;
+    }
+    double *x = (double*)malloc(sizeof(double) * x_size);
+    x[0] = -1.0;
 
-    ///////////////////// dot product implementation - working /////////////////////////
     for (h = 0; h < ann->hidden_layers; ++h) {
+        x++;
+        // printf("Before memcpy: x[1]: %f, i[0]: %f\n", x[1], i[0]);
+        memcpy(x, i, sizeof(double) * (h == 0 ? ann->inputs : ann->hidden));
+        x--;
+        // printf("After memcpy: x[1]: %f, i[0]: %f\n", x[1], i[0]);
+        cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->hidden, (h == 0 ? ann->inputs : ann->hidden) + 1, 
+                                    1.0, w, (h == 0 ? ann->inputs : ann->hidden) + 1, x, 1, 0.0, o, 1);
         for (j = 0; j < ann->hidden; ++j) {
-            double sum = *w++ * -1.0;
-            sum += cblas_ddot((h == 0 ? ann->inputs : ann->hidden), w, 1, i, 1); 
-            w += (h == 0 ? ann->inputs : ann->hidden);
-            *o++ = act(sum);
+            *o = act(*o);
+            //printf("h = %d, j = %d, o = %f \n", h, j, *o);
+            o++;
         }
+        w += ((h == 0 ? ann->inputs : ann->hidden) + 1) * ann->hidden;
         i += (h == 0 ? ann->inputs : ann->hidden);
     }
+
+    ///////////////////// dot product implementation - working /////////////////////////
+    // for (h = 0; h < ann->hidden_layers; ++h) {
+    //     for (j = 0; j < ann->hidden; ++j) {
+    //         double sum = *w++ * -1.0;
+    //         sum += cblas_ddot((h == 0 ? ann->inputs : ann->hidden), w, 1, i, 1); 
+    //         w += (h == 0 ? ann->inputs : ann->hidden);
+    //         *o++ = act(sum);
+    //     }
+    //     i += (h == 0 ? ann->inputs : ann->hidden);
+    // }
 
     ///////////////////// original implementation /////////////////////////
     // for (h = 0; h < ann->hidden_layers; ++h) {
@@ -251,32 +261,31 @@ double const *genann_run(genann const *ann, double const *inputs) {
     // }
 
     
-
     double const *ret = o;
 
     //TODO 1.b Double for loop -> blas calls
 
-    ///////////////////// matrix vector product implementation - not working /////////////////////////
-    // double *x = (double*)malloc(sizeof(double) * ((ann->hidden_layers ? ann->hidden : ann->inputs) + 1));
-    // x[0] = -1.0;
-    // memcpy(x + 1, i, (ann->hidden_layers ? ann->hidden : ann->inputs));
-    // cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->outputs, (ann->hidden_layers ? ann->hidden : ann->inputs) + 1,
-    //                              1.0, w, (ann->hidden_layers ? ann->hidden : ann->inputs) + 1, x, 1, 0.0, o, 1);
-    // for (j = 0; j < ann->outputs; ++j) {
-    //     *o = acto(*o);
-    //     o++;
-    // }
-    // w += ((ann->hidden_layers ? ann->hidden : ann->inputs) + 1) * ann->outputs;
-    // free(x);
+    ///////////////////// matrix vector product implementation - working /////////////////////////
+    x++;
+    memcpy(x, i, sizeof(double)*(ann->hidden_layers ? ann->hidden : ann->inputs));
+    x--;
+    cblas_dgemv(CblasRowMajor, CblasNoTrans, ann->outputs, (ann->hidden_layers ? ann->hidden : ann->inputs) + 1,
+                                 1.0, w, (ann->hidden_layers ? ann->hidden : ann->inputs) + 1, x, 1, 0.0, o, 1);
+    for (j = 0; j < ann->outputs; ++j) {
+        *o = acto(*o);
+        o++;
+    }
+    w += ((ann->hidden_layers ? ann->hidden : ann->inputs) + 1) * ann->outputs;
+    free(x);
 
 
     ///////////////////// dot product implementation - working /////////////////////////
-    for (j = 0; j < ann->outputs; ++j) {
-        double sum = *w++ * -1.0;
-        sum += cblas_ddot((ann->hidden_layers ? ann->hidden : ann->inputs), w, 1, i, 1); 
-        w += (ann->hidden_layers ? ann->hidden : ann->inputs);
-        *o++ = acto(sum);
-    }
+    // for (j = 0; j < ann->outputs; ++j) {
+    //     double sum = *w++ * -1.0;
+    //     sum += cblas_ddot((ann->hidden_layers ? ann->hidden : ann->inputs), w, 1, i, 1); 
+    //     w += (ann->hidden_layers ? ann->hidden : ann->inputs);
+    //     *o++ = acto(sum);
+    // }
 
     ///////////////////// original implementation /////////////////////////
     // for (j = 0; j < ann->outputs; ++j) {
@@ -352,7 +361,7 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
     //##########################################################################
 
         ///////////////////// matrix vector product implementation - not working /////////////////////////
-
+        
 
 
         ///////////////////// dot product implementation - working /////////////////////////
@@ -455,7 +464,7 @@ void genann_train(genann const *ann, double const *inputs, double const *desired
         //##########################################################################
         //##########################################################################
 
-        ///////////////////// daxpy implementation - not working /////////////////////////
+        ///////////////////// daxpy implementation - working /////////////////////////
         for (j = 0; j < ann->hidden; ++j) {            
             *w++ += *d * learning_rate * -1.0;
             cblas_daxpy((h == 0 ? ann->inputs : ann->hidden), *d * learning_rate, i, 1, w, 1);
