@@ -10,5 +10,8 @@
 *.dSYM
 /fredbje_ps3/RPS_pthread
 /fredbje_ps3/RPS_omp
-
+/fredbje_ps4/a.c
+/fredbje_ps4/example1
+/fredbje_ps4/example4
+/fredbje_ps4/test
 
