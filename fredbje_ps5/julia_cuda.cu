@@ -161,5 +161,12 @@ int main(int argc,char **argv) {
 	free(host_pixel);
 	free(buffer);
 
+/*
+	Number of SMs per card; CL_DEVICE_MAX_COMPUTE_UNITS: 30.
+	Each SM can run 8 blocs simultaneously.
+	Thread blocks have maximum dimensions CL_DEVICE_MAX_WORK_ITEM_SIZES: 512 / 512 / 64
+	Maximum number of threads, 512, that can be grouped together in a block. CL_DEVICE_MAX_WORK_GROUP_SIZE: 512. F.ex. 512 x 1 x 1
+	specifies the warp size: CL_NV_DEVICE_WARP_SIZE: 32
+*/
     return 0;
 }
